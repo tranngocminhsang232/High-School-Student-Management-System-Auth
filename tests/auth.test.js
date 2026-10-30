@@ -1,6 +1,7 @@
 /**
  * Bộ kiểm thử tự động cho Module Xác thực (Authentication Service)
  * Sử dụng Jest + Supertest
+ * (Bản cập nhật sau Peer Code Review: Bổ sung các ca kiểm thử biên Edge Cases và nâng cao Branch Coverage)
  */
 
 const request = require("supertest");
@@ -42,6 +43,7 @@ describe("Kiểm thử Module Xác thực (Authentication API)", () => {
         "message",
         "Tên đăng nhập và mật khẩu không được để trống"
       );
+      expect(response.body).toHaveProperty("code", "MISSING_CREDENTIALS");
     });
 
     test("3. Báo lỗi khi mật khẩu ngắn hơn 6 ký tự (400 Bad Request)", async () => {
@@ -57,6 +59,7 @@ describe("Kiểm thử Module Xác thực (Authentication API)", () => {
         "message",
         "Mật khẩu phải có ít nhất 6 ký tự"
       );
+      expect(response.body).toHaveProperty("code", "INVALID_PASSWORD_LENGTH");
     });
 
     test("4. Báo lỗi khi tên đăng nhập đã tồn tại (409 Conflict)", async () => {
@@ -81,6 +84,41 @@ describe("Kiểm thử Module Xác thực (Authentication API)", () => {
         "message",
         "Tên đăng nhập đã tồn tại"
       );
+      expect(response.body).toHaveProperty("code", "DUPLICATE_USERNAME");
+    });
+
+    // --- CÁC CA KIỂM THỬ BIÊN BỔ SUNG THEO CODE REVIEW ---
+    test("5. (Edge case) Tự động loại bỏ khoảng trắng ở đầu và cuối username (trim())", async () => {
+      const response = await request(app)
+        .post("/api/auth/register")
+        .send({
+          username: "   tranvanb   ",
+          password: "password123"
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.user.username).toBe("tranvanb");
+    });
+
+    test("6. (Edge case) Báo lỗi khi username chỉ chứa toàn khoảng trắng", async () => {
+      const response = await request(app)
+        .post("/api/auth/register")
+        .send({
+          username: "     ",
+          password: "password123"
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("code", "MISSING_CREDENTIALS");
+    });
+
+    test("7. (Edge case) Báo lỗi khi gửi body rỗng hoặc sai kiểu dữ liệu", async () => {
+      const response = await request(app)
+        .post("/api/auth/register")
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("code", "MISSING_CREDENTIALS");
     });
   });
 
@@ -90,7 +128,7 @@ describe("Kiểm thử Module Xác thực (Authentication API)", () => {
       await authService.register("nguyenvana", "password123");
     });
 
-    test("5. Đăng nhập thành công với thông tin chính xác (200 OK)", async () => {
+    test("8. Đăng nhập thành công với thông tin chính xác (200 OK)", async () => {
       const response = await request(app)
         .post("/api/auth/login")
         .send({
@@ -105,7 +143,7 @@ describe("Kiểm thử Module Xác thực (Authentication API)", () => {
       expect(response.body.user).not.toHaveProperty("passwordHash");
     });
 
-    test("6. Báo lỗi khi mật khẩu sai (400 Bad Request)", async () => {
+    test("9. Báo lỗi khi mật khẩu sai (400 Bad Request)", async () => {
       const response = await request(app)
         .post("/api/auth/login")
         .send({
@@ -118,9 +156,10 @@ describe("Kiểm thử Module Xác thực (Authentication API)", () => {
         "message",
         "Tên đăng nhập hoặc mật khẩu không chính xác"
       );
+      expect(response.body).toHaveProperty("code", "INVALID_CREDENTIALS");
     });
 
-    test("7. Báo lỗi khi tài khoản không tồn tại (400 Bad Request)", async () => {
+    test("10. Báo lỗi khi tài khoản không tồn tại (400 Bad Request)", async () => {
       const response = await request(app)
         .post("/api/auth/login")
         .send({
@@ -133,6 +172,29 @@ describe("Kiểm thử Module Xác thực (Authentication API)", () => {
         "message",
         "Tên đăng nhập hoặc mật khẩu không chính xác"
       );
+      expect(response.body).toHaveProperty("code", "INVALID_CREDENTIALS");
+    });
+
+    // --- CA KIỂM THỬ BIÊN BỔ SUNG CHO ĐĂNG NHẬP ---
+    test("11. (Edge case) Đăng nhập thành công khi username có khoảng trắng thừa", async () => {
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({
+          username: "  nguyenvana  ",
+          password: "password123"
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.user.username).toBe("nguyenvana");
+    });
+
+    test("12. (Edge case) Báo lỗi đăng nhập khi thiếu thông tin đăng nhập", async () => {
+      const response = await request(app)
+        .post("/api/auth/login")
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty("code", "MISSING_CREDENTIALS");
     });
   });
 });

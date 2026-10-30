@@ -1,6 +1,7 @@
 /**
  * High School Student Management System - Authentication Service
  * Cấu hình Express App và Định tuyến API Xác thực
+ * (Bản cập nhật sau Peer Code Review: Xử lý ngoại lệ chuẩn hóa với mã trạng thái HTTP)
  */
 
 const express = require("express");
@@ -23,11 +24,12 @@ app.post("/api/auth/register", async (req, res) => {
       user
     });
   } catch (error) {
-    const status =
-      error.message === "Tên đăng nhập đã tồn tại" ? 409 : 400;
+    // Tinh chỉnh theo Code Review: Sử dụng trực tiếp statusCode từ Custom Error thay vì so sánh chuỗi
+    const status = error.statusCode || 400;
 
     return res.status(status).json({
-      message: error.message
+      message: error.message,
+      code: error.code || "REGISTRATION_ERROR"
     });
   }
 });
@@ -44,8 +46,11 @@ app.post("/api/auth/login", async (req, res) => {
       user
     });
   } catch (error) {
-    return res.status(400).json({
-      message: error.message
+    const status = error.statusCode || 400;
+
+    return res.status(status).json({
+      message: error.message,
+      code: error.code || "LOGIN_ERROR"
     });
   }
 });
